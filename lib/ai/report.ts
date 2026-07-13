@@ -103,7 +103,7 @@ Taxa sem website na zona: ${d.noWebsiteRateInArea}%`
 }
 
 // O modelo por vezes envolve o JSON em fences markdown ou texto — extrair o objecto
-function parseReportJson(text: string): unknown {
+export function parseReportJson(text: string): unknown {
   const trimmed = text.trim()
   try {
     return JSON.parse(trimmed)

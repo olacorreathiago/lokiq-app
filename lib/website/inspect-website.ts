@@ -63,7 +63,7 @@ const DETECTORS: TechDetector[] = [
   { tech: 'Nuxt', test: (html) => html.includes('__nuxt') || html.includes('/_nuxt/') },
 ]
 
-function detectTech(html: string, headers: Headers): { tech: string | null; signals: string[] } {
+export function detectTech(html: string, headers: Headers): { tech: string | null; signals: string[] } {
   const lower = html.toLowerCase()
 
   for (const detector of DETECTORS) {

@@ -46,10 +46,15 @@ export function classifyWebsite(url: string | null | undefined): WebsitePresence
 
   let host: string
   try {
-    host = new URL(url).hostname.toLowerCase().replace(/^www\./, '')
+    const parsed = new URL(url)
+    // Só http(s) com host conta como site — descarta javascript:, mailto:, etc.
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'none'
+    host = parsed.hostname.toLowerCase().replace(/^www\./, '')
   } catch {
     return 'none'
   }
+
+  if (!host) return 'none'
 
   const isSocial = SOCIAL_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
   return isSocial ? 'social' : 'website'
