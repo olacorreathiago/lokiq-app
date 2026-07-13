@@ -241,5 +241,7 @@ type EventSource = 'auto' | 'manual' | 'ai' | 'system'
 - **Contexto de mercado nos eventos**: a captura e o refresh guardam `has_hours`, `nearby_competitors`, `no_website_rate` em `lead_events.metadata` — usados para regenerar relatórios e recalcular score sem re-pagar Nearby Search
 - **Refresh de lead**: `POST /api/leads/[id]/refresh` re-consulta Place Details (~€0.035), actualiza dados + score e regista evento `data_refreshed` (source `system`)
 - **Kanban**: drag & drop nativo HTML5 para mover stage (drop em Descartado pede motivo via prompt); click no cartão abre o detalhe
+- **Testes** (Vitest): `npm test` / `npm run test:watch` — testes em `tests/unit/*.test.ts`. Cobre `calcScore` (100%), `classifyWebsite`, `parseReportJson`, `detectTech`, `rateLimit` (36 testes)
+- **Rate limiting** (`lib/rate-limit.ts`): in-memory por IP+rota (janela deslizante), aplicado às rotas que gastam chave (search nearby/text, geocode, ai/report, leads report/refresh). Best-effort single-instance — migrar para Upstash/Redis quando houver tráfego serverless real
 - Score 0-100 com 5 dimensões fixas — não alterar pesos sem re-score de todos os leads
 - Máximo 10.000m de raio de pesquisa — protecção de custos e qualidade de resultados

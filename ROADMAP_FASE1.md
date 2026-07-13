@@ -212,8 +212,8 @@ NEXT_PUBLIC_DEMOS_DOMAIN
 - [x] Detecção de website via `websiteUri` (Enterprise SKU) — substitui DNS check
 - [x] Função `calcScore()` — algoritmo de scoring 0-100
 - [x] Contexto de vizinhança (noWebsiteRate calculado a partir de Place Details)
-- [ ] Testes unitários para cada função
-- [ ] Middleware de rate limiting nas API Routes (evitar abuso de chave)
+- [x] Testes unitários (Vitest): `calcScore` (100%), `classifyWebsite`, `parseReportJson`, `detectTech`, `rateLimit` — 36 testes
+- [x] Rate limiting in-memory nas API Routes que gastam chave (search, geocode, ai/report, leads report/refresh)
 
 **Semana 3 — UI de Pesquisa**
 - [x] Página `/search` — formulário Modo Raio (morada + raio + nicho opcional)
