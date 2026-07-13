@@ -17,6 +17,7 @@ export type EventType =
   | 'reminder_set'
   | 'reminder_fired'
   | 'ai_suggestion'
+  | 'data_refreshed'
 
 export type EventSource = 'auto' | 'manual' | 'ai' | 'system'
 
@@ -34,6 +35,8 @@ export interface Lead {
   rating: number | null
   review_count: number | null
   has_website: boolean
+  website_presence: 'none' | 'social' | 'website'
+  website_url: string | null
   opp_score: number
   stage: LeadStage
   demo_url: string | null

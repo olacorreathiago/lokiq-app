@@ -28,6 +28,7 @@ const FIELD_MASKS = {
     'primaryTypeDisplayName',
     'googleMapsUri',
     'businessStatus',
+    'websiteUri',
   ],
 } as const
 
@@ -36,6 +37,7 @@ interface NearbySearchParams {
   lng: number
   radiusMeters: number
   includedTypes: string[]
+  maxResults?: number
 }
 
 interface TextSearchParams {
@@ -61,6 +63,7 @@ export interface PlaceResult {
   regularOpeningHours?: { weekdayDescriptions?: string[] }
   primaryTypeDisplayName?: { text: string }
   googleMapsUri?: string
+  websiteUri?: string
 }
 
 async function placesRequest<T>(
@@ -87,18 +90,21 @@ async function placesRequest<T>(
 }
 
 export async function nearbySearch(params: NearbySearchParams): Promise<PlaceResult[]> {
-  const data = await placesRequest<PlacesApiResponse>(
-    '/places:searchNearby',
-    {
-      includedTypes: params.includedTypes,
-      locationRestriction: {
+  const body: Record<string, unknown> = {
+    locationRestriction: {
         circle: {
           center: { latitude: params.lat, longitude: params.lng },
           radius: params.radiusMeters,
         },
       },
-      maxResultCount: 20,
-    },
+    maxResultCount: params.maxResults ?? 20,
+  }
+  if (params.includedTypes.length > 0) {
+    body.includedTypes = params.includedTypes
+  }
+  const data = await placesRequest<PlacesApiResponse>(
+    '/places:searchNearby',
+    body,
     FIELD_MASKS.nearbySearch,
   )
 
