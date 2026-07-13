@@ -30,7 +30,7 @@
 | Deploy landing pages | Vercel + GitHub API | Push automático para subdomínio |
 | Deploy app | Vercel (Free → Pro) | CI/CD automático |
 | Pagamentos (futuro F2) | Stripe | Preparar estrutura desde MVP |
-| DNS detecção website | Node.js `dns.resolve` + `fetch HEAD` | Zero custo, <200ms |
+| Detecção website | `websiteUri` via Place Details (Enterprise SKU) | Fiável, incluído no FieldMask |
 
 ---
 
@@ -112,12 +112,11 @@ score = (
    FieldMask: places.id, places.displayName, places.primaryType,
               places.businessStatus, places.rating, places.userRatingCount
 3. Pré-filtro local   → businessStatus=OPERATIONAL, rating>0, reviews>0   custo zero
-4. Place Details      → 1 req por candidato         SKU Advanced    ~€0.017/req
+4. Place Details      → 1 req por candidato         SKU Enterprise  ~€0.035/req
    FieldMask: id, displayName, nationalPhoneNumber, formattedAddress,
               regularOpeningHours, rating, userRatingCount,
-              primaryTypeDisplayName, googleMapsUri, businessStatus
-5. DNS check          → variações de domínio .pt/.com               custo zero
-6. Nearby context     → concorrentes 1km mesmo tipo  SKU Basic      ~€0.030/req
+              primaryTypeDisplayName, googleMapsUri, businessStatus, websiteUri
+5. Filtro hasWebsite  → websiteUri da Place Details (Enterprise SKU) custo zero
 7. Claude Haiku       → relatório de oportunidade                   ~€0.003/empresa
 ```
 
@@ -130,40 +129,20 @@ score = (
 2. Text Search        → nome + locationBias 500m     SKU Basic       ~€0.030/req
    FieldMask: places.id, places.displayName, places.primaryType,
               places.businessStatus, places.rating, places.userRatingCount
-3. Place Details      → dados completos              SKU Advanced    ~€0.017/req
-4. DNS check          → domínios derivados do nome                   custo zero
-5. Nearby context     → concorrentes 1km             SKU Basic       ~€0.030/req
-   (corre em paralelo com steps 3+4)
+3. Place Details      → dados completos + websiteUri SKU Enterprise  ~€0.035/req
+4. Nearby context     → concorrentes 1km             SKU Basic       ~€0.030/req
+   (corre em paralelo com step 3)
 6. Claude Haiku       → relatório instantâneo                        ~€0.003/req
 ```
 
 **Custo estimado por pesquisa pontual:** ~€0.080  
 **Target de latência:** <3 segundos (steps 3+5 em paralelo)
 
-### Detecção de website — lógica sem SKU Enterprise
-```javascript
-async function checkWebsite(name, city) {
-  // 1. Dados já na Nearby/Text Search (sem custo extra)
-  if (place.websiteUri) return { hasWebsite: true, source: 'gmb' }
+### Detecção de website — via websiteUri (Enterprise SKU)
 
-  // 2. DNS lookup de variações comuns
-  const slug = slugify(name) // "forninho-do-mosteiro"
-  const domains = [
-    `${slug}.pt`, `${slug}.com`,
-    `${slug.replace(/-/g,'')}`.pt`, // "forinhomosteiro.pt"
-    `cafe${slug}.pt`
-  ]
-  for (const domain of domains) {
-    try {
-      await dns.resolve(domain)
-      const res = await fetch(`https://${domain}`, { method: 'HEAD', signal: AbortSignal.timeout(2000) })
-      if (res.ok) return { hasWebsite: true, source: 'dns', domain }
-    } catch {}
-  }
-  return { hasWebsite: false, checked: domains }
-}
-// websiteUri (SKU Enterprise ~€0.035) só como último recurso de confirmação
-```
+Decisão tomada: usar `websiteUri` da Place Details (Enterprise SKU ~€0.035/req) para detecção fiável de website. O DNS check local foi descartado por ser pouco fiável (falsos negativos frequentes — e.g., nomes de empresa que não correspondem ao domínio).
+
+O campo `websiteUri` é incluído no FieldMask de Place Details e serve como fonte autoritativa.
 
 ---
 
@@ -197,17 +176,17 @@ async function checkWebsite(name, city) {
 
 ## Fases de desenvolvimento
 
-### Fase 0 — Preparação (Semana 1)
+### Fase 0 — Preparação (Semana 1) ✅
 **Duração:** 3–4 dias
 
-- [ ] Setup repositório GitHub (monorepo Next.js)
-- [ ] Setup Supabase — projeto, schema SQL completo, RLS policies
-- [ ] Setup Google Cloud — habilitar Places API (New), criar API key com restrições HTTP
-- [ ] Setup Anthropic API key
+- [x] Setup repositório GitHub (monorepo Next.js)
+- [x] Setup Supabase — projeto, schema SQL completo, RLS policies
+- [x] Setup Google Cloud — habilitar Places API (New), criar API key
+- [x] Setup Anthropic API key
 - [ ] Setup Vercel — link ao repo, variáveis de ambiente
 - [ ] Configurar domínio principal + wildcard DNS para demos (`*.lokiq.app`)
 - [ ] Setup GitHub API token para push de demos
-- [ ] Testar manualmente cada API com Postman/curl antes de integrar
+- [x] Testar manualmente cada API com health check (`/api/health`)
 
 **Variáveis de ambiente necessárias:**
 ```
@@ -227,30 +206,36 @@ NEXT_PUBLIC_DEMOS_DOMAIN
 **Duração:** 8–10 dias
 
 **Semana 2 — Pipeline Places API**
-- [ ] API Route `/api/search/nearby` — Nearby Search com FieldMask
-- [ ] API Route `/api/search/text` — Text Search com locationBias
-- [ ] API Route `/api/places/details` — Place Details com FieldMask Advanced
-- [ ] Função `checkWebsite()` — DNS + HTTP HEAD
-- [ ] Função `calcScore()` — algoritmo de scoring 0-100
-- [ ] Função `getNearbyContext()` — concorrentes 1km mesmo type
+- [x] API Route `/api/search/nearby` — Nearby Search com FieldMask + custo + maxResults
+- [x] API Route `/api/search/text` — Text Search com locationBias
+- [x] API Route `/api/places/details` — Place Details com FieldMask Enterprise (websiteUri)
+- [x] Detecção de website via `websiteUri` (Enterprise SKU) — substitui DNS check
+- [x] Função `calcScore()` — algoritmo de scoring 0-100
+- [x] Contexto de vizinhança (noWebsiteRate calculado a partir de Place Details)
 - [ ] Testes unitários para cada função
 - [ ] Middleware de rate limiting nas API Routes (evitar abuso de chave)
 
 **Semana 3 — UI de Pesquisa**
-- [ ] Página `/search` — formulário Modo Raio (morada + raio + nicho)
-- [ ] Página `/search` — tab Modo Pontual (nome + GPS automático)
-- [ ] Componente `SearchResults` — lista de cards com score
-- [ ] Componente `LeadCard` — nome, tipo, score, rating, badge "sem website"
-- [ ] Loading states e error handling
-- [ ] Guardar lead em `leads` ao clicar "Guardar"
+- [x] Página `/search` — formulário Modo Raio (morada + raio + nicho opcional)
+- [x] Página `/search` — tab Modo Pontual (nome + geocode server-side)
+- [x] Componente `LeadCard` — nome, tipo, score, rating, badge "sem website", custo
+- [x] Loading states e error handling
+- [x] Guardar lead em `leads` ao clicar "Guardar"
+- [x] Modal de relatório IA (sinais, contexto, pitch, confiança)
+- [x] Filtro no Modo Raio: só sem site próprio (default) ou todos os estabelecimentos
+- [x] Classificação de presença digital: none | social (só Facebook/Instagram) | website
+- [x] Bloqueio de resultados (`blocked_places`) — botão nos resultados + página `/blocked`; excluídos antes dos Place Details
+- [x] Exclusão de leads já guardados nas pesquisas (cache de place_id)
+- [x] Nichos expandidos: 9 nichos, ~65 sub-tipos seleccionáveis (chips)
+- [x] Fingerprint de tecnologia do site (WordPress/Wix/etc + sites quebrados) no relatório IA
 
 ---
 
 ### Fase 2 — Relatório e IA (Semana 4)
 **Duração:** 5–6 dias
 
-- [ ] System prompt base (cacheado) para relatório de oportunidade
-- [ ] API Route `/api/ai/report` — Claude Haiku, prompt caching activado
+- [x] System prompt base (cacheado) para relatório de oportunidade
+- [x] API Route `/api/ai/report` — Claude Haiku, prompt caching activado
 - [ ] Componente `ReportView` — score, sinais, contexto de mercado, pitch sugerido
 - [ ] Prompt e API Route `/api/ai/demo` — geração de landing page HTML
 - [ ] 5 templates base (um por nicho prioritário) no system prompt
@@ -272,13 +257,13 @@ NEXT_PUBLIC_DEMOS_DOMAIN
 ### Fase 3 — Pipeline CRM (Semana 5)
 **Duração:** 5–6 dias
 
-- [ ] Página `/leads` — Kanban view (6 colunas de stage)
-- [ ] Componente `KanbanBoard` — drag ou click para mover stage
-- [ ] API Route `/api/leads/[id]/stage` — muda stage + insere evento
-- [ ] Componente `LeadDetail` — tabs: Timeline | Mover Stage | Nota | Dados
-- [ ] Componente `Timeline` — lista de eventos ordenados por data
-- [ ] API Route `/api/leads/[id]/events` — GET + POST
-- [ ] Formulário de nota manual (tipo + texto livre)
+- [x] Página `/leads` — Kanban view (6 colunas de stage)
+- [x] Componente `KanbanBoard` — drag ou click para mover stage
+- [x] API Route `/api/leads/[id]/stage` — muda stage + insere evento
+- [x] Componente `LeadDetail` — tabs: Timeline | Mover Stage | Nota | Dados
+- [x] Componente `Timeline` — lista de eventos ordenados por data
+- [x] API Route `/api/leads/[id]/events` — GET + POST
+- [x] Formulário de nota manual (tipo + texto livre)
 - [ ] Lembretes: inserção de evento com `scheduled_at`
 - [ ] pg_cron job no Supabase — verifica lembretes a cada hora
 - [ ] Sugestão IA ao registar nota longa (Claude resume + sugere próximo passo)
@@ -348,11 +333,11 @@ NEXT_PUBLIC_DEMOS_DOMAIN
 | Risco | Impacto | Mitigação |
 |---|---|---|
 | Custo Google Places escala | Alto | FieldMask obrigatório em todos os requests; alertas de billing; cache de place_id já pesquisados |
-| `websiteUri` SKU Enterprise | Alto | DNS check local evita 90%+ dos casos; Enterprise só como fallback |
+| Custo `websiteUri` SKU Enterprise | Médio | Incluído no FieldMask de Place Details; custo controlado via `maxResults` |
 | Qualidade dados GMB incompletos | Médio | Pré-filtro por rating + reviews > 0 antes de Place Details |
 | Rate limits Places API | Médio | Queue de requests com `p-limit` (max 10 concurrent); retry com backoff |
 | RGPD — dados de empresas | Médio | B2B é mais permissivo; dados são públicos do GMB; adicionar privacy policy |
-| DNS check falso negativo | Baixo | Empresa pode ter website sem domínio óbvio — score penaliza, não descarta |
+| websiteUri falso negativo | Baixo | Raro — Google Maps é fonte autoritativa; empresa pode não ter registado no GMB |
 
 ---
 

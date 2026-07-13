@@ -15,7 +15,7 @@ Prospecting Engine para PMEs sem website. Next.js 15 (App Router) + Supabase + G
 
 1. `lead_events` is append-only — INSERT only, never UPDATE/DELETE
 2. FieldMask is mandatory on every Google Places API request — never omit
-3. Never request `websiteUri` (Enterprise SKU ~€0.035/req) — use `checkWebsite()` with DNS instead
+3. `websiteUri` (Enterprise SKU ~€0.035/req) is used for reliable website detection — DNS guessing was too unreliable
 4. RLS active on all tables — policies use `user_id = auth.uid()`
 5. Secret keys only in API Routes (`/app/api/`) — never in client code
 6. Claude prompt caching: system prompt must be fixed and long (>1024 tokens)

@@ -30,8 +30,8 @@
 ### Google Places API
 - **FieldMask obrigatório** em todos os requests — nunca omitir
 - FieldMask mínimo para Nearby/Text Search: `places.id,places.displayName,places.primaryType,places.businessStatus,places.rating,places.userRatingCount`
-- FieldMask para Place Details: `id,displayName,nationalPhoneNumber,formattedAddress,regularOpeningHours,rating,userRatingCount,primaryTypeDisplayName,googleMapsUri,businessStatus`
-- **Nunca pedir `websiteUri`** (SKU Enterprise) — usar `checkWebsite()` com DNS em vez disso
+- FieldMask para Place Details: `id,displayName,nationalPhoneNumber,formattedAddress,regularOpeningHours,rating,userRatingCount,primaryTypeDisplayName,googleMapsUri,businessStatus,websiteUri`
+- **`websiteUri` (SKU Enterprise)** incluído no FieldMask de Place Details — fonte autoritativa para detecção de website
 - Nunca pedir `reviews`, `photos` no MVP
 - Requests paralelos com `Promise.all()` onde possível (Place Details + Nearby context)
 - Cache de `place_id` na tabela `leads` para não re-pesquisar o mesmo negócio
@@ -107,7 +107,7 @@
 
 ### Cobertura mínima
 - `lib/scoring/calcScore` — 100% (é o core do produto)
-- `lib/website/checkWebsite` — 100% (mock de DNS e fetch)
+- `lib/website/checkWebsite` — descontinuado (substituído por `websiteUri`)
 - `lib/places/*` — testes com fixtures de resposta real da API
 - Componentes críticos: snapshot tests para `ReportView`, `KanbanBoard`
 
@@ -160,7 +160,7 @@
 
 ```
 feat: adiciona modo pontual com GPS
-fix: corrige FieldMask no Place Details (remover websiteUri)
+fix: corrige FieldMask no Place Details
 refactor: extrai calcScore para lib/scoring
 test: adiciona fixtures para nicho beleza
 chore: actualiza dependências
@@ -227,10 +227,19 @@ type EventSource = 'auto' | 'manual' | 'ai' | 'system'
 
 ## Notas de produto (decisões tomadas)
 
-- `websiteUri` (SKU Enterprise) **não usado** — DNS check local cobre 90%+ dos casos
+- `websiteUri` (SKU Enterprise) **usado** — fonte autoritativa para detecção de website; DNS check descartado por falsos negativos frequentes
 - Haiku 4.5 é o modelo para tudo na Fase 1; Sonnet só na Fase 2 se qualidade insuficiente
 - Modo Pontual é **mobile-first** — UI desenhada para ecrã de telemóvel primeiro
 - Demo landing page é HTML estático single-file — sem dependências externas
 - `lead_events` é append-only — decisão arquitectural permanente
+- **Interino até Fase 4:** sem auth, as API Routes usam `DEV_USER_ID` (env) como `user_id` — user de dev `dev@lokiq.local` criado em auth.users; substituir por `auth.uid()` da sessão quando o login existir (ver `currentUserId()` em `lib/supabase/server.ts`)
+- **Presença digital em 3 estados** (`lib/website/classify-website.ts`): `none` | `social` (websiteUri é Facebook/Instagram/Linktree/etc — continua a ser prospect) | `website` (site próprio). "Sem website" no produto significa `presence !== 'website'`. Guardado em `leads.website_presence` + `leads.website_url`
+- **Bloqueio de resultados** (`blocked_places`): resultados bloqueados e leads já guardados são excluídos da nearby search ANTES dos Place Details (poupa SKU Enterprise). Fail-open se a query falhar. Gestão em `/blocked`
+- **Nichos** (`lib/niches.ts`): estrutura nicho → sub-tipos com labels PT; types têm de existir na Table A da Places API (New) — `optician`/`psychologist` foram removidos por serem inválidos. UI com chips multi-select
+- **Fingerprint de tecnologia** (`lib/website/inspect-website.ts`): fetch com timeout 6s, detecta WordPress/Wix/Squarespace/Shopify/etc e sites quebrados; corre na geração de relatório quando o lead tem site próprio (não corre inline na pesquisa — latência). O antigo `check-website.ts` (DNS guessing) foi removido
+- **Relatórios persistentes**: a lógica IA vive em `lib/ai/report.ts` (partilhada). Leads guardados geram relatório via `POST /api/leads/[id]/report` — o JSON fica em `lead_events.metadata.report` (event_type `report_created`, source `ai`) e é re-consultável na timeline ("Ver relatório"). Relatórios de resultados não guardados (pesquisa) continuam efémeros via `/api/ai/report`
+- **Contexto de mercado nos eventos**: a captura e o refresh guardam `has_hours`, `nearby_competitors`, `no_website_rate` em `lead_events.metadata` — usados para regenerar relatórios e recalcular score sem re-pagar Nearby Search
+- **Refresh de lead**: `POST /api/leads/[id]/refresh` re-consulta Place Details (~€0.035), actualiza dados + score e regista evento `data_refreshed` (source `system`)
+- **Kanban**: drag & drop nativo HTML5 para mover stage (drop em Descartado pede motivo via prompt); click no cartão abre o detalhe
 - Score 0-100 com 5 dimensões fixas — não alterar pesos sem re-score de todos os leads
 - Máximo 10.000m de raio de pesquisa — protecção de custos e qualidade de resultados
