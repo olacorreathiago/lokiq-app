@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient, currentUserId } from '@/lib/supabase/server'
 import { generateOpportunityReport } from '@/lib/ai/report'
+import { rateLimit } from '@/lib/rate-limit'
 import type { Lead } from '@/lib/types'
 
 interface CaptureContext {
@@ -13,6 +14,9 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const limited = rateLimit(_request, { key: 'lead-report', limit: 20, windowMs: 60_000 })
+  if (limited) return limited
+
   const { id } = await params
   const supabase = createServiceClient()
 

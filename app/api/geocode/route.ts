@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { rateLimit } from '@/lib/rate-limit'
 
 const querySchema = z.object({
   address: z.string().min(1).max(300),
 })
 
 export async function GET(request: Request) {
+  const limited = rateLimit(request, { key: 'geocode', limit: 20, windowMs: 60_000 })
+  if (limited) return limited
+
   const url = new URL(request.url)
   const parsed = querySchema.safeParse({ address: url.searchParams.get('address') ?? '' })
 

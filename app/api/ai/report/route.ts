@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateOpportunityReport } from '@/lib/ai/report'
+import { rateLimit } from '@/lib/rate-limit'
 
 const bodySchema = z.object({
   name: z.string().min(1).max(200),
@@ -19,6 +20,9 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, { key: 'ai-report', limit: 20, windowMs: 60_000 })
+  if (limited) return limited
+
   let body: unknown
   try {
     body = await request.json()

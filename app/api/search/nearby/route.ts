@@ -4,6 +4,7 @@ import { nearbySearch, placeDetails } from '@/lib/places/client'
 import { calcScore } from '@/lib/scoring/calc-score'
 import { classifyWebsite } from '@/lib/website/classify-website'
 import { createServiceClient, currentUserId } from '@/lib/supabase/server'
+import { rateLimit } from '@/lib/rate-limit'
 
 const COST_GEOCODE = 0.005
 const COST_NEARBY_SEARCH = 0.032
@@ -19,6 +20,9 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, { key: 'search-nearby', limit: 10, windowMs: 60_000 })
+  if (limited) return limited
+
   let body: unknown
   try {
     body = await request.json()

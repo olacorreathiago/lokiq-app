@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { textSearch, placeDetails, nearbySearch } from '@/lib/places/client'
 import { calcScore } from '@/lib/scoring/calc-score'
 import { classifyWebsite } from '@/lib/website/classify-website'
+import { rateLimit } from '@/lib/rate-limit'
 
 const bodySchema = z.object({
   query: z.string().min(1).max(100),
@@ -12,6 +13,9 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, { key: 'search-text', limit: 15, windowMs: 60_000 })
+  if (limited) return limited
+
   let body: unknown
   try {
     body = await request.json()

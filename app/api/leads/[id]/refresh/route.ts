@@ -3,6 +3,7 @@ import { createServiceClient, currentUserId } from '@/lib/supabase/server'
 import { placeDetails } from '@/lib/places/client'
 import { calcScore } from '@/lib/scoring/calc-score'
 import { classifyWebsite } from '@/lib/website/classify-website'
+import { rateLimit } from '@/lib/rate-limit'
 import type { Lead } from '@/lib/types'
 
 const COST_PLACE_DETAILS_ENTERPRISE = 0.035
@@ -17,6 +18,9 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const limited = rateLimit(_request, { key: 'lead-refresh', limit: 20, windowMs: 60_000 })
+  if (limited) return limited
+
   const { id } = await params
   const supabase = createServiceClient()
 
