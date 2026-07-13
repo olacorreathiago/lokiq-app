@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 export async function createClient() {
@@ -23,9 +24,18 @@ export async function createClient() {
 }
 
 export function createServiceClient() {
-  const { createClient } = require('@supabase/supabase-js')
-  return createClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
+}
+
+// Interino até Fase 4 (Supabase Auth): user fixo de dev para satisfazer o NOT NULL
+// de user_id nas tabelas. Substituir por auth.uid() da sessão quando houver login.
+export function currentUserId(): string {
+  const id = process.env.DEV_USER_ID
+  if (!id) {
+    throw new Error('DEV_USER_ID em falta no .env.local (ver .env.example)')
+  }
+  return id
 }
